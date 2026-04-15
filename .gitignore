@@ -1,0 +1,29 @@
+# ===== C# / .NET =====
+bin/
+obj/
+.vs/
+*.user
+*.suo
+packages/
+logs/
+
+# ===== Android =====
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.externalNativeBuild/
+.cxx/
+*.aab
+*.hprof
+
+# ===== Common =====
+*.log
+Thumbs.db
+.DS_Store
+.cache/
+tmp/
+
+# ===== Claude Code =====
+.claude/
