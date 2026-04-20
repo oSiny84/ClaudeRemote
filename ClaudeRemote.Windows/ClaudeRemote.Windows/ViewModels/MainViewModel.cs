@@ -14,6 +14,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IClaudeAutomationService _claudeService;
     private readonly IWebSocketServerService _webSocketServer;
+    private readonly IFileServerService _fileServer;
     private readonly ISessionManager _sessionManager;
     private readonly IMessageProcessor _messageProcessor;
 
@@ -33,11 +34,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public MainViewModel(
         IClaudeAutomationService claudeService,
         IWebSocketServerService webSocketServer,
+        IFileServerService fileServer,
         ISessionManager sessionManager,
         IMessageProcessor messageProcessor)
     {
         _claudeService = claudeService;
         _webSocketServer = webSocketServer;
+        _fileServer = fileServer;
         _sessionManager = sessionManager;
         _messageProcessor = messageProcessor;
 
@@ -107,15 +110,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (IsServerRunning)
         {
             _webSocketServer.Stop();
+            _fileServer.Stop();
             IsServerRunning = false;
-            AppendLog($"WebSocket server stopped");
+            AppendLog($"WebSocket + File server stopped");
             StatusText = "Server stopped";
         }
         else
         {
             _webSocketServer.Start(ServerPort);
+            try
+            {
+                _fileServer.Start(ServerPort + 1);
+                AppendLog(_fileServer.IsRunning
+                    ? $"WebSocket:{ServerPort}, FileServer:{ServerPort + 1}"
+                    : $"WebSocket:{ServerPort} (FileServer failed — see log)");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[ToggleServer] FileServer.Start crashed");
+                AppendLog($"WebSocket:{ServerPort} (FileServer error: {ex.Message})");
+            }
             IsServerRunning = true;
-            AppendLog($"WebSocket server started on port {ServerPort}");
             StatusText = $"Server running on port {ServerPort}";
         }
     }
@@ -247,5 +262,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _claudeService.StopMonitoring();
         _claudeService.StopProcessWatcher();
         _webSocketServer.Stop();
+        _fileServer.Stop();
     }
 }

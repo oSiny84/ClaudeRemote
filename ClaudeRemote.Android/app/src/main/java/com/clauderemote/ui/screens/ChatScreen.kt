@@ -3,13 +3,13 @@ package com.clauderemote.ui.screens
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,22 +22,20 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clauderemote.data.model.ButtonInfo
+import com.clauderemote.data.model.ChatMessage
+import com.clauderemote.ui.components.MessageBubble
 import com.clauderemote.viewmodel.MainViewModel
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(viewModel: MainViewModel) {
-    val output by viewModel.claudeOutput.collectAsState()
+    val chatMessages by viewModel.chatMessages.collectAsState()
     val outputScope by viewModel.outputScope.collectAsState()
     val claudeStatus by viewModel.claudeStatus.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -47,7 +45,7 @@ fun ChatScreen(viewModel: MainViewModel) {
     val commandText by viewModel.commandText.collectAsState()
     val commandHistory by viewModel.commandHistory.collectAsState()
 
-    val scrollState = rememberScrollState()
+    val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -64,8 +62,11 @@ fun ChatScreen(viewModel: MainViewModel) {
         }
     }
 
-    LaunchedEffect(output) {
-        if (output.isNotEmpty()) scrollState.animateScrollTo(scrollState.maxValue)
+    // Auto-scroll to the newest message when the list grows
+    LaunchedEffect(chatMessages.size) {
+        if (chatMessages.isNotEmpty()) {
+            listState.animateScrollToItem(chatMessages.lastIndex)
+        }
     }
 
     Column(
@@ -97,8 +98,11 @@ fun ChatScreen(viewModel: MainViewModel) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                 }
                 IconButton(onClick = {
-                    if (output.isNotEmpty()) {
-                        clipboardManager.setText(AnnotatedString(output))
+                    if (chatMessages.isNotEmpty()) {
+                        val joined = chatMessages.joinToString("\n\n") {
+                            "[${it.role}]\n${it.content}"
+                        }
+                        clipboardManager.setText(AnnotatedString(joined))
                         Toast.makeText(context, "Copied!", Toast.LENGTH_SHORT).show()
                     }
                 }) {
@@ -124,42 +128,64 @@ fun ChatScreen(viewModel: MainViewModel) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // === OUTPUT CONTENT ===
+        // === CHAT MESSAGES ===
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
             shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            color = MaterialTheme.colorScheme.surface
         ) {
             when {
-                isLoading -> {
+                isLoading && chatMessages.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(modifier = Modifier.size(36.dp), strokeWidth = 3.dp)
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                strokeWidth = 3.dp
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("Loading output...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                            Text(
+                                "Loading output...",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp
+                            )
                         }
                     }
                 }
-                output.isEmpty() -> {
+                chatMessages.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("No output yet", fontSize = 16.sp, fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "No messages yet",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Tap Refresh to load", fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                            Text(
+                                "Tap Refresh to load",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
                 else -> {
-                    MarkdownText(
-                        text = output,
-                        modifier = Modifier
-                            .verticalScroll(scrollState)
-                            .padding(12.dp)
-                    )
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(
+                            items = chatMessages,
+                            // index + role is stable for an append-only chat log
+                            key = { index, msg -> "$index:${msg.role}" }
+                        ) { _, msg ->
+                            MessageBubble(role = msg.role, content = msg.content)
+                        }
+                    }
                 }
             }
         }
@@ -170,14 +196,12 @@ fun ChatScreen(viewModel: MainViewModel) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isPermission) {
-                // Permission header
                 Text(
                     text = "Permission Required:",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
                 )
-                // Command preview
                 if (!actionButtonsPrompt.isNullOrEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Surface(
@@ -214,7 +238,6 @@ fun ChatScreen(viewModel: MainViewModel) {
                     }
                 }
             } else {
-                // Selection UI
                 Text(
                     text = actionButtonsPrompt ?: "Claude is asking:",
                     fontSize = 13.sp,
@@ -283,12 +306,14 @@ fun ChatScreen(viewModel: MainViewModel) {
                         onClick = { showQuickCommands = false },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.ExpandMore, contentDescription = "Collapse",
-                            modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            contentDescription = "Collapse",
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
 
-                // History chips
                 AnimatedVisibility(visible = showHistory && commandHistory.isNotEmpty()) {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -298,7 +323,12 @@ fun ChatScreen(viewModel: MainViewModel) {
                             SuggestionChip(
                                 onClick = { viewModel.updateCommandText(cmd) },
                                 label = {
-                                    Text(cmd, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
+                                    Text(
+                                        cmd,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        fontSize = 12.sp
+                                    )
                                 },
                                 modifier = Modifier.widthIn(max = 160.dp)
                             )
@@ -337,7 +367,11 @@ fun ChatScreen(viewModel: MainViewModel) {
                 enabled = commandText.isNotBlank(),
                 modifier = Modifier.size(44.dp)
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Send,
+                    contentDescription = "Send",
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -404,9 +438,7 @@ private fun PermissionButton(
                 onClick = onClick,
                 enabled = enabled,
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981)
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
             ) {
                 spinner()
                 Text(button.text, fontSize = 14.sp, color = Color.White)
@@ -420,173 +452,6 @@ private fun PermissionButton(
             ) {
                 spinner()
                 Text(button.text, fontSize = 14.sp)
-            }
-        }
-    }
-}
-
-// --- Simple Markdown Renderer ---
-
-@Composable
-private fun MarkdownText(text: String, modifier: Modifier = Modifier) {
-    val blocks = parseMarkdownBlocks(text)
-    Column(modifier = modifier) {
-        blocks.forEach { block ->
-            when (block) {
-                is MdBlock.CodeBlock -> CodeBlockView(block.language, block.code)
-                is MdBlock.TextBlock -> {
-                    Text(
-                        text = parseInlineMarkdown(block.text),
-                        fontFamily = FontFamily.Default,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 20.sp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-    }
-}
-
-@Composable
-private fun CodeBlockView(language: String, code: String) {
-    val horizontalScroll = rememberScrollState()
-    Column {
-        if (language.isNotEmpty()) {
-            Text(
-                text = language,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
-            )
-        }
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = code,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .horizontalScroll(horizontalScroll)
-                    .padding(12.dp)
-            )
-        }
-    }
-}
-
-// --- Markdown parsing helpers ---
-
-private sealed class MdBlock {
-    data class CodeBlock(val language: String, val code: String) : MdBlock()
-    data class TextBlock(val text: String) : MdBlock()
-}
-
-private fun parseMarkdownBlocks(text: String): List<MdBlock> {
-    val blocks = mutableListOf<MdBlock>()
-    val lines = text.lines()
-    var i = 0
-    while (i < lines.size) {
-        val line = lines[i]
-        if (line.trimStart().startsWith("```")) {
-            val lang = line.trimStart().removePrefix("```").trim()
-            val codeLines = mutableListOf<String>()
-            i++
-            while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
-                codeLines.add(lines[i])
-                i++
-            }
-            blocks.add(MdBlock.CodeBlock(lang, codeLines.joinToString("\n")))
-            i++
-        } else {
-            val textLines = mutableListOf<String>()
-            while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
-                textLines.add(lines[i])
-                i++
-            }
-            val joined = textLines.joinToString("\n").trim()
-            if (joined.isNotEmpty()) {
-                blocks.add(MdBlock.TextBlock(joined))
-            }
-        }
-    }
-    return blocks
-}
-
-@Composable
-private fun parseInlineMarkdown(text: String): AnnotatedString {
-    val codeColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-    val codeBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-
-    return buildAnnotatedString {
-        var i = 0
-        val chars = text.toCharArray()
-        while (i < chars.size) {
-            when {
-                // Bold: **text**
-                i + 1 < chars.size && chars[i] == '*' && chars[i + 1] == '*' -> {
-                    val end = text.indexOf("**", i + 2)
-                    if (end != -1) {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append(text.substring(i + 2, end))
-                        }
-                        i = end + 2
-                    } else { append(chars[i]); i++ }
-                }
-                // Italic: *text*
-                chars[i] == '*' && (i == 0 || chars[i - 1] != '*') -> {
-                    val end = text.indexOf('*', i + 1)
-                    if (end != -1 && (end + 1 >= chars.size || chars[end + 1] != '*')) {
-                        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                            append(text.substring(i + 1, end))
-                        }
-                        i = end + 1
-                    } else { append(chars[i]); i++ }
-                }
-                // Inline code: `text`
-                chars[i] == '`' -> {
-                    val end = text.indexOf('`', i + 1)
-                    if (end != -1) {
-                        withStyle(SpanStyle(
-                            fontFamily = FontFamily.Monospace,
-                            color = codeColor,
-                            background = codeBg,
-                            fontSize = 12.sp
-                        )) {
-                            append(" ${text.substring(i + 1, end)} ")
-                        }
-                        i = end + 1
-                    } else { append(chars[i]); i++ }
-                }
-                // Heading: # at start of line
-                (i == 0 || chars[i - 1] == '\n') && chars[i] == '#' -> {
-                    var level = 0
-                    var j = i
-                    while (j < chars.size && chars[j] == '#') { level++; j++ }
-                    if (j < chars.size && chars[j] == ' ') {
-                        val lineEnd = text.indexOf('\n', j).let { if (it == -1) chars.size else it }
-                        val headingText = text.substring(j + 1, lineEnd)
-                        val fontSize = when (level) { 1 -> 18.sp; 2 -> 16.sp; else -> 14.sp }
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = fontSize)) {
-                            append(headingText)
-                        }
-                        append("\n")
-                        i = lineEnd + 1
-                    } else { append(chars[i]); i++ }
-                }
-                // List items: - or * at start of line
-                (i == 0 || chars[i - 1] == '\n') && (chars[i] == '-' || chars[i] == '*')
-                        && i + 1 < chars.size && chars[i + 1] == ' ' -> {
-                    append("  \u2022 ")
-                    i += 2
-                }
-                else -> { append(chars[i]); i++ }
             }
         }
     }

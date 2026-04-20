@@ -31,12 +31,57 @@ data class ProjectInfo(
     val id: String,
     val name: String,
     val path: String = "",
-    val active: Boolean = false
+    val active: Boolean = false,
+    val expanded: Boolean = false
 )
 
 data class ButtonInfo(
     val id: String,
     val text: String
+)
+
+@Serializable
+data class UsageDashboard(
+    val contextWindow: ContextWindow? = null,
+    val fiveHourLimit: UsageLimit? = null,
+    val weeklyAllModels: UsageLimit? = null,
+    val weeklySonnetOnly: UsageLimit? = null,
+    val modelName: String? = null,
+    val planName: String? = null,
+    val fetchedAt: String? = null
+)
+
+@Serializable
+data class ContextWindow(
+    val usedText: String? = null,
+    val totalText: String? = null,
+    val percentUsed: Int? = null
+)
+
+@Serializable
+data class UsageLimit(
+    val label: String? = null,
+    val percentUsed: Int? = null,
+    val resetText: String? = null
+)
+
+data class FileEntry(
+    val name: String,   // display label (e.g. "C: (Local Disk)" for a drive)
+    val path: String,   // full filesystem path — use THIS for navigation/download
+    val type: String,   // "file" or "directory"
+    val size: Long = 0,
+    val modified: String? = null
+)
+
+/**
+ * Chat-style rendering of Claude conversation.
+ * - role = "user": user's input (right-aligned bubble)
+ * - role = "assistant": Claude's response (left-aligned, markdown rendered)
+ * - role = "tool": tool execution trace (collapsible card)
+ */
+data class ChatMessage(
+    val role: String,
+    val content: String
 )
 
 object MessageType {
@@ -60,6 +105,9 @@ object MessageAction {
     const val OUTPUT_CHUNK = "output_chunk"
     const val ACTION_BUTTONS = "action_buttons"
     const val CLICK_BUTTON = "click_button"
+    const val GET_USAGE_DASHBOARD = "get_usage_dashboard"
+    const val BROWSE_FILES = "browse_files"
+    const val REQUEST_DOWNLOAD = "request_download"
     const val CLAUDE_STATUS = "claude_status"
     const val HEARTBEAT = "heartbeat"
 }

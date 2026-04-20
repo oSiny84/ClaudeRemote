@@ -36,6 +36,7 @@ public partial class App : Application
         // Services
         services.AddSingleton<IClaudeAutomationService, ClaudeAutomationService>();
         services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
+        services.AddSingleton<IFileServerService, FileServerService>();   // Phase 12
         services.AddSingleton<ISessionManager, SessionManager>();
         services.AddSingleton<IMessageProcessor, MessageProcessor>();
 

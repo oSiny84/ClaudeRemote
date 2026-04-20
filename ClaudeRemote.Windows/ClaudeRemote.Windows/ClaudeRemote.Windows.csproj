@@ -24,4 +24,11 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
   </ItemGroup>
 
+  <!-- Phase 12 Hotfix 2: Kestrel-based file server (no HTTP.sys ACL required).
+       Using FrameworkReference pulls the shared ASP.NET Core runtime which
+       ships with the .NET 8 SDK — no extra download, no admin. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>

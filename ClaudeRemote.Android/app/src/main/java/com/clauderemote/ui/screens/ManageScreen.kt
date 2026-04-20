@@ -1,5 +1,6 @@
 package com.clauderemote.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clauderemote.data.model.ProjectInfo
 import com.clauderemote.data.model.SessionInfo
+import com.clauderemote.ui.components.FileBrowserDialog
+import com.clauderemote.ui.components.UsageDashboardDialog
 import com.clauderemote.viewmodel.MainViewModel
 
 @Composable
@@ -26,48 +29,55 @@ fun ManageScreen(viewModel: MainViewModel) {
     val sessions by viewModel.sessions.collectAsState()
     val projects by viewModel.projects.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val showUsageDashboard by viewModel.showUsageDashboard.collectAsState()
+    val usageDashboard by viewModel.usageDashboard.collectAsState()
+    val usageDashboardLoading by viewModel.usageDashboardLoading.collectAsState()
+    val showFileBrowser by viewModel.showFileBrowser.collectAsState()
+    val fileEntries by viewModel.fileEntries.collectAsState()
+    val filePath by viewModel.currentPath.collectAsState()
+    val fileParentPath by viewModel.parentPath.collectAsState()
+    val fileBrowserLoading by viewModel.fileBrowserLoading.collectAsState()
+
+    // There is at most one "focused" expanded project whose sessions are displayed.
+    // If the server returns multiple expanded, we pick the first.
+    val expandedProject = projects.firstOrNull { it.expanded }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Sessions Section
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // View detailed usage — opens UsageDashboardDialog
+        OutlinedButton(
+            onClick = { viewModel.openUsageDashboard() },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Sessions", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Row {
-                IconButton(onClick = { viewModel.requestSessions() }) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh sessions", modifier = Modifier.size(20.dp))
-                }
-                IconButton(onClick = { viewModel.addSession() }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add session", modifier = Modifier.size(20.dp))
-                }
-            }
-        }
-
-        if (sessions.isEmpty()) {
-            EmptyStateBox(
-                message = if (isLoading) "Loading sessions..." else "No sessions. Tap refresh to load.",
-                isLoading = isLoading
+            Icon(
+                Icons.Default.Analytics,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
             )
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sessions) { session ->
-                    SessionCard(session) { viewModel.selectSession(session.id) }
-                }
-            }
+            Spacer(Modifier.width(8.dp))
+            Text("View detailed usage")
         }
+        Spacer(Modifier.height(8.dp))
 
-        // Projects Section
-        Spacer(modifier = Modifier.height(20.dp))
+        // Browse files — opens FileBrowserDialog
+        OutlinedButton(
+            onClick = { viewModel.openFileBrowser() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                Icons.Default.FolderOpen,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Browse files")
+        }
+        Spacer(Modifier.height(16.dp))
 
+        // Projects Section (moved to top — drives Sessions display below)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -94,6 +104,87 @@ fun ManageScreen(viewModel: MainViewModel) {
                 }
             }
         }
+
+        // Sessions Section (below Projects — depends on expanded project)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (expandedProject != null) "Sessions - ${expandedProject.name}" else "Sessions",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Row {
+                IconButton(
+                    onClick = { viewModel.requestSessions() },
+                    enabled = expandedProject != null
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh sessions", modifier = Modifier.size(20.dp))
+                }
+                IconButton(
+                    onClick = { viewModel.addSession() },
+                    enabled = expandedProject != null
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add session", modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+
+        when {
+            expandedProject == null -> {
+                EmptyStateBox(
+                    message = "Select a project to view sessions",
+                    isLoading = false
+                )
+            }
+            sessions.isEmpty() -> {
+                EmptyStateBox(
+                    message = if (isLoading) "Loading sessions..." else "No sessions in this project.",
+                    isLoading = isLoading
+                )
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(sessions) { session ->
+                        SessionCard(session) { viewModel.selectSession(session.id) }
+                    }
+                }
+            }
+        }
+    }
+
+    // Usage Dashboard dialog (overlay — doesn't occupy layout space)
+    if (showUsageDashboard) {
+        UsageDashboardDialog(
+            dashboard = usageDashboard,
+            isLoading = usageDashboardLoading,
+            onRefresh = { viewModel.requestUsageDashboard() },
+            onDismiss = { viewModel.closeUsageDashboard() }
+        )
+    }
+
+    // File Browser bottom sheet
+    if (showFileBrowser) {
+        FileBrowserDialog(
+            currentPath = filePath,
+            parentPath = fileParentPath,
+            entries = fileEntries,
+            isLoading = fileBrowserLoading,
+            onBrowseDirectory = { viewModel.browseDirectory(it) },
+            onBrowseParent = { viewModel.browseParent() },
+            onDownload = { viewModel.requestDownload(it) },
+            onDismiss = { viewModel.closeFileBrowser() }
+        )
     }
 }
 
@@ -194,28 +285,33 @@ private fun ProjectCard(project: ProjectInfo, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (project.active)
+            containerColor = if (project.expanded)
                 MaterialTheme.colorScheme.primaryContainer
             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        ),
+        border = if (project.expanded)
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        else null
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Default.Folder,
-                contentDescription = null,
+                imageVector = if (project.expanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                contentDescription = if (project.expanded) "Expanded" else "Collapsed",
                 modifier = Modifier.size(20.dp),
-                tint = if (project.active) MaterialTheme.colorScheme.primary
+                tint = if (project.expanded) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = project.name,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp
+                    fontWeight = if (project.expanded) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = if (project.expanded) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface
                 )
                 if (project.path.isNotEmpty()) {
                     Text(
@@ -227,14 +323,13 @@ private fun ProjectCard(project: ProjectInfo, onClick: () -> Unit) {
                     )
                 }
             }
-            if (project.active) {
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = "Active project",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+            Icon(
+                imageVector = if (project.expanded) Icons.Default.KeyboardArrowDown
+                else Icons.Default.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

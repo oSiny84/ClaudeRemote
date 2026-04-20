@@ -140,7 +140,7 @@ public static class Phase5Test
 
             var mockClaude = new MockClaudeService();
             var sessionMgr = new SessionManager(mockClaude);
-            var processor = new MessageProcessor(mockClaude, sessionMgr, server);
+            var processor = new MessageProcessor(mockClaude, sessionMgr, server, new MockFileServerService());
 
             using var client = new ClientWebSocket();
             await client.ConnectAsync(new Uri("ws://localhost:19003"), CancellationToken.None);
@@ -208,7 +208,7 @@ public static class Phase5Test
 
             var mockClaude = new MockClaudeService();
             var sessionMgr = new SessionManager(mockClaude);
-            var processor = new MessageProcessor(mockClaude, sessionMgr, server);
+            var processor = new MessageProcessor(mockClaude, sessionMgr, server, new MockFileServerService());
 
             using var client = new ClientWebSocket();
             await client.ConnectAsync(new Uri("ws://localhost:19004"), CancellationToken.None);
@@ -286,11 +286,21 @@ public static class Phase5Test
     {
         public bool IsClaudeRunning => true;
         public string CurrentMode => "chat";
+        public string? LastAskUserQuestionPrompt => null;
+        public string? LastPermissionPrompt => null;
+        public string? LastButtonCategory => null;
         public event EventHandler<string>? OutputChanged;
         public event EventHandler<bool>? ClaudeStatusChanged;
         public event EventHandler<List<ButtonInfo>>? ActionButtonsChanged;
         public Task<bool> FindClaudeWindowAsync() => Task.FromResult(true);
         public Task<string> GetOutputAsync(string scope = "latest") => Task.FromResult("mock");
+        public Task<List<ChatMessage>> GetChatMessagesAsync(string scope = "latest")
+            => Task.FromResult(new List<ChatMessage>
+            {
+                new() { Role = "assistant", Content = "mock" }
+            });
+        public Task<UsageInfo?> GetUsageInfoAsync() => Task.FromResult<UsageInfo?>(null);
+        public Task<UsageDashboard?> GetUsageDashboardAsync() => Task.FromResult<UsageDashboard?>(null);
         public Task<bool> SendInputAsync(string text) => Task.FromResult(true);
         public Task<bool> SwitchModeAsync(string targetMode) => Task.FromResult(true);
         public Task<List<SessionInfo>> GetSessionsAsync() => Task.FromResult(new List<SessionInfo>());

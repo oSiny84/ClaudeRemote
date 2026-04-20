@@ -128,7 +128,7 @@ try
 
     var mockClaude = new MockClaudeAutomationService();
     var sessionMgr = new SessionManager(mockClaude);
-    var processor = new MessageProcessor(mockClaude, sessionMgr, server);
+    var processor = new MessageProcessor(mockClaude, sessionMgr, server, new MockFileServerService());
     server.MessageReceived += async (_, msg) => await processor.ProcessIncomingMessageAsync(msg);
 
     using var client = new ClientWebSocket();
@@ -171,7 +171,7 @@ try
 
     var mockClaude = new MockClaudeAutomationService();
     var sessionMgr = new SessionManager(mockClaude);
-    var processor = new MessageProcessor(mockClaude, sessionMgr, server);
+    var processor = new MessageProcessor(mockClaude, sessionMgr, server, new MockFileServerService());
     server.MessageReceived += async (_, msg) => await processor.ProcessIncomingMessageAsync(msg);
 
     using var client = new ClientWebSocket();
@@ -222,7 +222,7 @@ try
 
     var mockClaude = new MockClaudeAutomationService();
     var sessionMgr = new SessionManager(mockClaude);
-    var processor = new MessageProcessor(mockClaude, sessionMgr, server);
+    var processor = new MessageProcessor(mockClaude, sessionMgr, server, new MockFileServerService());
     server.MessageReceived += async (_, msg) => await processor.ProcessIncomingMessageAsync(msg);
 
     using var client = new ClientWebSocket();
@@ -261,7 +261,7 @@ try
 
     var mockClaude = new MockClaudeAutomationService();
     var sessionMgr = new SessionManager(mockClaude);
-    var processor = new MessageProcessor(mockClaude, sessionMgr, server);
+    var processor = new MessageProcessor(mockClaude, sessionMgr, server, new MockFileServerService());
     server.MessageReceived += async (_, msg) => await processor.ProcessIncomingMessageAsync(msg);
 
     using var client = new ClientWebSocket();
@@ -339,11 +339,25 @@ async Task<T> WaitWithTimeout<T>(Task<T> task, int timeoutMs)
 
 // === Mock Services ===
 
+// Phase 12: stub file server for tests (no actual HTTP listener)
+class MockFileServerService : IFileServerService
+{
+    public bool IsRunning => false;
+    public int Port => 18999;
+    public void Start(int port = 8766) { }
+    public void Stop() { }
+    public string BuildDownloadUrl(string localFilePath, string localIp)
+        => $"http://{localIp}:{Port}/download?path={localFilePath}";
+}
+
 class MockClaudeAutomationService : IClaudeAutomationService
 {
     public bool IsClaudeRunning => true;
     public string CurrentMode => "chat";
     public string? LastInputText { get; private set; }
+    public string? LastAskUserQuestionPrompt => null;
+    public string? LastPermissionPrompt => null;
+    public string? LastButtonCategory => null;
 
     public event EventHandler<string>? OutputChanged;
     public event EventHandler<bool>? ClaudeStatusChanged;
@@ -353,6 +367,15 @@ class MockClaudeAutomationService : IClaudeAutomationService
 
     public Task<string> GetOutputAsync(string scope = "latest")
         => Task.FromResult("Mock Claude output for testing");
+
+    public Task<List<ChatMessage>> GetChatMessagesAsync(string scope = "latest")
+        => Task.FromResult(new List<ChatMessage>
+        {
+            new() { Role = "assistant", Content = "Mock Claude output for testing" }
+        });
+
+    public Task<UsageInfo?> GetUsageInfoAsync() => Task.FromResult<UsageInfo?>(null);
+    public Task<UsageDashboard?> GetUsageDashboardAsync() => Task.FromResult<UsageDashboard?>(null);
 
     public Task<bool> SendInputAsync(string text)
     {

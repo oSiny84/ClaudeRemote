@@ -51,7 +51,9 @@ public class WebSocketServerService : IWebSocketServerService, IDisposable
 
             socket.OnMessage = message =>
             {
-                Log.Debug("Message received: {Message}", message);
+                // Full JSON is noisy on hot paths — keep it available at
+                // Verbose for debugging but don't pollute the default log.
+                Log.Verbose("Message received: {Message}", message);
                 MessageReceived?.Invoke(this, message);
             };
 

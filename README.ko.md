@@ -5,8 +5,11 @@ Windows PC의 **Claude Code** 데스크톱 앱을 Android 스마트폰에서 원
 > **현재 Claude Code (Code 모드) 전용입니다.** Claude Chat / Cowork 모드는 지원하지 않습니다.
 
 > ⚠️ **Claude 앱 버전 호환성**
-> **2026-04-15** 이전에 작성된 커밋은 Claude Code 앱 **`1.2581.0 (f10398)` 미만 버전에서만** 동작합니다.
-> `1.2581.0 (f10398)` 버전부터는 Claude 앱 UI가 크게 변경되어 UIAutomation 매핑을 다시 작업해야 합니다. 사용 중인 Claude 앱 버전에 맞는 커밋을 사용하세요.
+> 사용 중인 Claude Code 앱 버전에 맞는 ClaudeRemote 버전을 선택하세요:
+> - **v1.0** — Claude Code 앱 **`1.2581.0 (f10398)` 미만** 버전용
+> - **v2.0** — Claude Code 앱 **`1.2581.0 (f10398)` 이상** 버전용 (새 UI: 폴더 형태 프로젝트 구조)
+>
+> `1.2581.0 (f10398)` 버전부터 Claude 앱 UI가 크게 변경되었습니다(프로젝트가 펼쳐지는 폴더 구조로 변경, 세션이 프로젝트 안에 포함됨). v2.0은 이 새 UI를 지원합니다. 사용 중인 Claude 앱 버전에 맞는 ClaudeRemote 버전을 사용하세요.
 
 ## 개요
 
@@ -21,9 +24,18 @@ ClaudeRemote는 두 개의 앱으로 구성됩니다:
 
 빌드된 실행 파일은 [`Asset/`](Asset/) 폴더에서 받을 수 있습니다.
 
+### v2.0 — Claude Code `1.2581.0 (f10398)` 이상용 (최신)
+
+| 파일 | 플랫폼 | 요구사항 |
+|------|--------|----------|
+| [ClaudeCodeRemote-2.0-Windows-x64.zip](Asset/ClaudeCodeRemote-2.0-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0+` |
+| [ClaudeCodeRemote-2.0-android.apk](Asset/ClaudeCodeRemote-2.0-android.apk) | Android | Android 8.0 (API 26) 이상 |
+
+### v1.0 — Claude Code `1.2581.0 (f10398)` 미만용
+
 | 파일 | 플랫폼 | 크기 | 요구사항 |
 |------|--------|------|----------|
-| [ClaudeCodeRemote-1.0-Windows-x64.zip](Asset/ClaudeCodeRemote-1.0-Windows-x64.zip) | Windows x64 | 약 3.0 MB | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code 데스크톱 앱 |
+| [ClaudeCodeRemote-1.0-Windows-x64.zip](Asset/ClaudeCodeRemote-1.0-Windows-x64.zip) | Windows x64 | 약 3.0 MB | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0` 미만 |
 | [ClaudeCodeRemote-1.0-android.apk](Asset/ClaudeCodeRemote-1.0-android.apk) | Android | 약 16.3 MB | Android 8.0 (API 26) 이상 |
 
 **Windows 설치:**
@@ -57,7 +69,7 @@ ClaudeRemote는 두 개의 앱으로 구성됩니다:
 | 원격 명령 입력 | Android에서 텍스트 입력 → Claude Code에 전달 |
 | 선택 버튼 제어 | Claude가 제시하는 선택지를 Android에서 탭하여 선택 |
 | 세션 관리 | 세션 목록 조회, 세션 전환, 새 세션 생성 |
-| 프로젝트 관리 | 프로젝트 목록 조회, 프로젝트 전환 |
+| 프로젝트 관리 | 폴더 형태로 프로젝트 탐색, 프로젝트별 세션 표시 (v2.0) |
 | 실시간 상태 감지 | Claude 앱 실행/종료 자동 감지, 스트리밍 상태 표시 |
 | 자동 재연결 | 네트워크 끊김 시 지수 백오프로 자동 재연결 |
 | 백그라운드 유지 | Android Foreground Service로 앱이 백그라운드여도 연결 유지 |
@@ -199,8 +211,9 @@ Android 앱은 원격에서 Claude Code를 조작하는 **리모컨** 역할을 
 - 하단: Quick Commands (Continue, Stop, New) + 명령 입력 필드
 
 **Manage 화면**
-- 세션 목록: 조회, 선택, 새 세션 추가
-- 프로젝트 목록: 조회, 프로젝트 전환
+- 프로젝트 목록 (v2.0): 폴더 구조 — 프로젝트를 탭하면 펼쳐지면서 그 안의 세션이 표시됨, 다시 탭하면 접힘
+- 세션 목록: 현재 펼쳐진 프로젝트의 세션 조회/선택/추가
+- v1.0: 세션과 프로젝트가 별도 섹션의 평면 목록
 
 #### 주요 동작
 
@@ -209,7 +222,7 @@ Android 앱은 원격에서 Claude Code를 조작하는 **리모컨** 역할을 
 3. **Quick Commands** — Continue(계속), Stop(중지), New(새 세션) 빠른 실행
 4. **선택 버튼** — Claude가 선택지를 제시하면 "Claude is asking:" 영역에 버튼 표시 → 탭하여 선택
 5. **세션 전환** — Manage 탭에서 세션 목록 확인 및 전환
-6. **프로젝트 전환** — Manage 탭에서 프로젝트 목록 확인 및 전환
+6. **프로젝트 전환** — Manage 탭에서 프로젝트 목록 확인 및 전환. v2.0에서는 프로젝트를 탭하면 그 안의 세션이 펼쳐지고, 다시 탭하면 접힘
 7. **설정** — 상단 설정 아이콘 → 서버 주소 저장, 자동 연결, 알림, 테마 설정
 
 #### 연결 설정
@@ -263,7 +276,7 @@ ClaudeRemote/
 
 - **Claude Code 전용** — 현재 Claude Code (Code 모드)만 지원합니다. Claude Chat, Cowork 모드는 지원하지 않습니다.
 - **같은 네트워크 필요** — Windows PC와 Android 기기가 동일한 로컬 네트워크에 있어야 합니다.
-- **UIAutomation 의존** — Windows 앱은 Claude Code 앱의 UI 요소를 자동화하여 제어합니다. Claude 앱 업데이트로 UI 구조가 변경되면 동작이 불안정해질 수 있습니다.
+- **UIAutomation 의존** — Windows 앱은 Claude Code 앱의 UI 요소를 자동화하여 제어합니다. Claude 앱 업데이트로 UI 구조가 변경되면 동작이 불안정해질 수 있습니다. 사용 중인 Claude 앱 버전에 맞는 ClaudeRemote 버전(v1.0 또는 v2.0)을 사용하세요.
 - **클립보드 사용** — 텍스트 입력 시 시스템 클립보드를 사용합니다. 입력 중 클립보드 내용이 덮어써질 수 있습니다.
 - **평문 통신** — WebSocket은 `ws://` (비암호화)를 사용합니다. 로컬 네트워크 외부에서는 사용하지 마세요.
 

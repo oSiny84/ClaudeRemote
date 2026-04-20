@@ -1,5 +1,10 @@
 package com.clauderemote.viewmodel
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.clauderemote.ClaudeRemoteApp
@@ -32,6 +37,11 @@ class MainViewModel : ViewModel() {
     private val _claudeOutput = MutableStateFlow("")
     val claudeOutput: StateFlow<String> = _claudeOutput
 
+    // Chat-bubble rendering (Phase 13) — preferred UI source.
+    // `_claudeOutput` remains for clipboard "copy all" and for chunk reassembly.
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages
+
     private val _outputScope = MutableStateFlow("latest")
     val outputScope: StateFlow<String> = _outputScope
 
@@ -56,6 +66,32 @@ class MainViewModel : ViewModel() {
 
     private val _buttonCategory = MutableStateFlow<String?>(null)
     val buttonCategory: StateFlow<String?> = _buttonCategory
+
+    // Usage Dashboard
+    private val _usageDashboard = MutableStateFlow<UsageDashboard?>(null)
+    val usageDashboard: StateFlow<UsageDashboard?> = _usageDashboard
+
+    private val _usageDashboardLoading = MutableStateFlow(false)
+    val usageDashboardLoading: StateFlow<Boolean> = _usageDashboardLoading
+
+    private val _showUsageDashboard = MutableStateFlow(false)
+    val showUsageDashboard: StateFlow<Boolean> = _showUsageDashboard
+
+    // File Browser
+    private val _fileEntries = MutableStateFlow<List<FileEntry>>(emptyList())
+    val fileEntries: StateFlow<List<FileEntry>> = _fileEntries
+
+    private val _currentPath = MutableStateFlow("")
+    val currentPath: StateFlow<String> = _currentPath
+
+    private val _parentPath = MutableStateFlow<String?>(null)
+    val parentPath: StateFlow<String?> = _parentPath
+
+    private val _showFileBrowser = MutableStateFlow(false)
+    val showFileBrowser: StateFlow<Boolean> = _showFileBrowser
+
+    private val _fileBrowserLoading = MutableStateFlow(false)
+    val fileBrowserLoading: StateFlow<Boolean> = _fileBrowserLoading
 
     // Command Input
     private val _commandText = MutableStateFlow("")
@@ -161,6 +197,7 @@ class MainViewModel : ViewModel() {
         webSocketClient.disconnect()
         _statusMessage.value = "Disconnected"
         _claudeOutput.value = ""
+        _chatMessages.value = emptyList()
         _sessions.value = emptyList()
         _projects.value = emptyList()
     }
@@ -243,16 +280,202 @@ class MainViewModel : ViewModel() {
         )
     }
 
+    // --- Usage Dashboard ---
+
+    fun requestUsageDashboard() {
+        _usageDashboardLoading.value = true
+        webSocketClient.sendCommand(action = MessageAction.GET_USAGE_DASHBOARD)
+    }
+
+    fun openUsageDashboard() {
+        _showUsageDashboard.value = true
+        requestUsageDashboard()
+    }
+
+    fun closeUsageDashboard() {
+        _showUsageDashboard.value = false
+    }
+
+    // --- File Browser ---
+
+    fun openFileBrowser() {
+        _showFileBrowser.value = true
+        browseFiles("")
+    }
+
+    fun closeFileBrowser() {
+        _showFileBrowser.value = false
+    }
+
+    fun browseFiles(path: String) {
+        Log.d(TAG_FILE, "browseFiles → sending path='$path'")
+        _fileBrowserLoading.value = true
+        webSocketClient.sendCommand(
+            action = MessageAction.BROWSE_FILES,
+            payload = mapOf("path" to path)
+        )
+    }
+
+    /**
+     * Navigate into a directory. The caller MUST pass the full filesystem
+     * path (from `FileEntry.path`) — we do NOT reconstruct it from name +
+     * currentPath because the server's name is a display label that may not
+     * match the actual directory name (e.g. drives: name="C: (Local Disk)",
+     * path="C:\\").
+     */
+    fun browseDirectory(fullPath: String) {
+        Log.d(TAG_FILE, "browseDirectory → fullPath='$fullPath'")
+        browseFiles(fullPath)
+    }
+
+    fun browseParent() {
+        val parent = _parentPath.value
+        Log.d(TAG_FILE, "browseParent → parent='$parent'")
+        parent?.let { browseFiles(it) }
+    }
+
+    /** Request a download URL — caller passes the server-supplied full path. */
+    fun requestDownload(fullPath: String) {
+        Log.d(TAG_FILE, "requestDownload → fullPath='$fullPath'")
+        webSocketClient.sendCommand(
+            action = MessageAction.REQUEST_DOWNLOAD,
+            payload = mapOf("path" to fullPath)
+        )
+    }
+
+    private fun startDownload(downloadUrl: String, fileName: String) {
+        Log.d(TAG_FILE, "startDownload: fileName='$fileName' url='$downloadUrl'")
+        try {
+            val context = ClaudeRemoteApp.instance
+            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setTitle(fileName)
+                setDescription("ClaudeRemote file download")
+                // Allow mobile + wifi. Servers on LAN are reached over wifi.
+                setAllowedNetworkTypes(
+                    DownloadManager.Request.NETWORK_WIFI or
+                        DownloadManager.Request.NETWORK_MOBILE
+                )
+            }
+            val downloadId = dm.enqueue(request)
+            Log.d(TAG_FILE, "enqueue → id=$downloadId")
+            _snackbarEvent.tryEmit("Downloading $fileName...")
+            pollDownloadStatus(dm, downloadId, fileName)
+        } catch (e: Exception) {
+            Log.e(TAG_FILE, "startDownload exception", e)
+            _snackbarEvent.tryEmit("Download failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Polls DownloadManager for status transitions and surfaces failures as
+     * snackbars + logs. Needed because DownloadManager fails silently on
+     * unreachable URLs / HTTP errors / network issues — no exception from enqueue.
+     */
+    private fun pollDownloadStatus(
+        dm: DownloadManager,
+        downloadId: Long,
+        fileName: String
+    ) {
+        viewModelScope.launch {
+            val query = DownloadManager.Query().setFilterById(downloadId)
+            // Poll up to 60s for a terminal state
+            repeat(120) {
+                kotlinx.coroutines.delay(500)
+                val cursor = dm.query(query) ?: return@repeat
+                cursor.use { c ->
+                    if (!c.moveToFirst()) return@repeat
+                    val statusCol = c.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                    val reasonCol = c.getColumnIndex(DownloadManager.COLUMN_REASON)
+                    val bytesCol = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                    val totalCol = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                    val status = if (statusCol >= 0) c.getInt(statusCol) else -1
+                    val reason = if (reasonCol >= 0) c.getInt(reasonCol) else -1
+                    val bytes = if (bytesCol >= 0) c.getLong(bytesCol) else -1
+                    val total = if (totalCol >= 0) c.getLong(totalCol) else -1
+
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            Log.d(TAG_FILE, "download[$downloadId] SUCCESS: $fileName ($bytes bytes)")
+                            _snackbarEvent.tryEmit("Saved: $fileName")
+                            return@launch
+                        }
+                        DownloadManager.STATUS_FAILED -> {
+                            val msg = downloadReasonToText(reason)
+                            Log.w(
+                                TAG_FILE,
+                                "download[$downloadId] FAILED: reason=$reason ($msg) " +
+                                    "bytes=$bytes/$total"
+                            )
+                            _snackbarEvent.tryEmit("Download failed: $msg")
+                            return@launch
+                        }
+                        DownloadManager.STATUS_PAUSED -> {
+                            val pausedMsg = pausedReasonToText(reason)
+                            Log.d(
+                                TAG_FILE,
+                                "download[$downloadId] PAUSED: reason=$reason ($pausedMsg) " +
+                                    "bytes=$bytes/$total"
+                            )
+                        }
+                        DownloadManager.STATUS_PENDING,
+                        DownloadManager.STATUS_RUNNING -> {
+                            // progress — don't spam logs
+                        }
+                        else -> {
+                            Log.d(TAG_FILE, "download[$downloadId] status=$status (unknown)")
+                        }
+                    }
+                }
+            }
+            Log.w(TAG_FILE, "download polling timed out after 60s (id=$downloadId)")
+        }
+    }
+
+    private fun pausedReasonToText(reason: Int): String = when (reason) {
+        DownloadManager.PAUSED_WAITING_TO_RETRY -> "waiting to retry (server/HTTP error)"
+        DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "waiting for network"
+        DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "queued for Wi-Fi"
+        DownloadManager.PAUSED_UNKNOWN -> "unknown"
+        else -> "code=$reason"
+    }
+
+    private fun downloadReasonToText(reason: Int): String = when (reason) {
+        DownloadManager.ERROR_CANNOT_RESUME -> "Cannot resume"
+        DownloadManager.ERROR_DEVICE_NOT_FOUND -> "Storage not found"
+        DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "File already exists"
+        DownloadManager.ERROR_FILE_ERROR -> "File error"
+        DownloadManager.ERROR_HTTP_DATA_ERROR -> "HTTP data error (server closed connection?)"
+        DownloadManager.ERROR_INSUFFICIENT_SPACE -> "Not enough space"
+        DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "Too many redirects"
+        DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "Unhandled HTTP code"
+        DownloadManager.ERROR_UNKNOWN -> "Unknown error"
+        in 400..599 -> "HTTP $reason"
+        else -> "reason=$reason"
+    }
+
     fun selectProject(projectId: String) {
         webSocketClient.sendCommand(
             action = MessageAction.SELECT_PROJECT,
             mode = "code",
             payload = mapOf("projectId" to projectId)
         )
-        // Optimistic UI update
-        _projects.value = _projects.value.map {
-            it.copy(active = it.id == projectId)
+        // Optimistic UI: exclusive selection — selected project becomes
+        // the ONLY active/expanded one; all others collapse. Server uses
+        // the same semantics (expand target + collapse others), so the
+        // authoritative response will match this optimistic state.
+        _projects.value = _projects.value.map { project ->
+            if (project.id == projectId) {
+                project.copy(active = true, expanded = true)
+            } else {
+                project.copy(active = false, expanded = false)
+            }
         }
+        // Auto-refresh sessions — server also pushes updates, but this guarantees
+        // the client sees the new selection's sessions immediately
+        requestSessions()
     }
 
     // --- Command History ---
@@ -316,18 +539,31 @@ class MainViewModel : ViewModel() {
             MessageAction.OUTPUT_UPDATE -> {
                 val content = payload?.get("content")?.jsonPrimitive?.content ?: return
                 _claudeOutput.value = content
+                // Fallback path: no messages[] → treat the full text as one assistant reply
+                _chatMessages.value = listOf(ChatMessage(role = "assistant", content = content))
             }
             MessageAction.OUTPUT_FULL -> {
                 val messages = payload?.get("messages")?.jsonArray
                 if (messages != null) {
-                    _claudeOutput.value = buildString {
-                        messages.forEach { el ->
-                            val obj = el.jsonObject
-                            val role = obj["role"]?.jsonPrimitive?.content ?: "unknown"
-                            val content = obj["content"]?.jsonPrimitive?.content ?: ""
-                            if (isNotEmpty()) append("\n\n")
-                            append("[$role]\n$content")
-                        }
+                    val parsed = messages.map { el ->
+                        val obj = el.jsonObject
+                        ChatMessage(
+                            role = obj["role"]?.jsonPrimitive?.content ?: "assistant",
+                            content = obj["content"]?.jsonPrimitive?.content ?: ""
+                        )
+                    }
+                    _chatMessages.value = parsed
+                    // Legacy joined form — kept for the "copy all" clipboard action
+                    _claudeOutput.value = parsed.joinToString("\n\n") {
+                        "[${it.role}]\n${it.content}"
+                    }
+                } else {
+                    // Back-compat: server sent plain content only
+                    val content = payload?.get("content")?.jsonPrimitive?.content
+                    if (content != null) {
+                        _claudeOutput.value = content
+                        _chatMessages.value =
+                            listOf(ChatMessage(role = "assistant", content = content))
                     }
                 }
             }
@@ -363,7 +599,10 @@ class MainViewModel : ViewModel() {
         chunkBuffer[chunkId]?.let { buffer ->
             if (chunkIndex < buffer.size) buffer[chunkIndex] = data
             if (buffer.count { it.isNotEmpty() } == totalChunks) {
-                _claudeOutput.value = buffer.joinToString("")
+                val joined = buffer.joinToString("")
+                _claudeOutput.value = joined
+                _chatMessages.value =
+                    listOf(ChatMessage(role = "assistant", content = joined))
                 chunkBuffer.remove(chunkId)
                 chunkTotals.remove(chunkId)
             }
@@ -389,17 +628,33 @@ class MainViewModel : ViewModel() {
                     _snackbarEvent.tryEmit("Failed to load sessions")
                 }
             }
-            MessageAction.GET_PROJECTS -> {
+            MessageAction.GET_PROJECTS, MessageAction.SELECT_PROJECT -> {
                 if (success) {
+                    // Both GET_PROJECTS and SELECT_PROJECT responses carry
+                    // the authoritative project list (with expand/active state).
+                    // SELECT_PROJECT also carries updated sessions.
                     _projects.value = payload?.get("projects")?.jsonArray?.map { el ->
                         val obj = el.jsonObject
                         ProjectInfo(
                             id = obj["id"]?.jsonPrimitive?.content ?: "",
                             name = obj["name"]?.jsonPrimitive?.content ?: "",
                             path = obj["path"]?.jsonPrimitive?.content ?: "",
-                            active = obj["active"]?.jsonPrimitive?.boolean ?: false
+                            active = obj["active"]?.jsonPrimitive?.boolean ?: false,
+                            expanded = obj["expanded"]?.jsonPrimitive?.boolean ?: false
                         )
                     } ?: emptyList()
+                    // SELECT_PROJECT also returns sessions for the expanded project
+                    payload?.get("sessions")?.jsonArray?.let { sessionsArr ->
+                        _sessions.value = sessionsArr.map { el ->
+                            val obj = el.jsonObject
+                            SessionInfo(
+                                id = obj["id"]?.jsonPrimitive?.content ?: "",
+                                name = obj["name"]?.jsonPrimitive?.content ?: "",
+                                active = obj["active"]?.jsonPrimitive?.boolean ?: false,
+                                lastMessage = obj["lastMessage"]?.jsonPrimitive?.content ?: ""
+                            )
+                        }
+                    }
                 } else {
                     _snackbarEvent.tryEmit("Failed to load projects")
                 }
@@ -420,6 +675,73 @@ class MainViewModel : ViewModel() {
                 }
                 // Don't clear buttons here — server sends action_buttons with
                 // updated state, avoiding race condition with consecutive questions
+            }
+            MessageAction.GET_USAGE_DASHBOARD -> {
+                _usageDashboardLoading.value = false
+                if (success) {
+                    // Try nested "dashboard" object first, fall back to payload itself
+                    val dashObj = payload?.get("dashboard") as? JsonObject ?: payload
+                    if (dashObj != null) {
+                        _usageDashboard.value = parseUsageDashboard(dashObj)
+                    } else {
+                        _snackbarEvent.tryEmit("Usage data missing")
+                    }
+                } else {
+                    val error = payload?.get("error")?.jsonPrimitive?.content
+                    _snackbarEvent.tryEmit("Failed to load usage: ${error ?: "unknown"}")
+                }
+            }
+            MessageAction.BROWSE_FILES -> {
+                _fileBrowserLoading.value = false
+                if (success) {
+                    // Server payload keys (Phase 12 Hotfix 1):
+                    //   currentPath, parentPath, entries[{name,path,type,size,modified}]
+                    _currentPath.value =
+                        (payload?.get("currentPath") as? JsonPrimitive)?.contentOrNull ?: ""
+                    _parentPath.value =
+                        (payload?.get("parentPath") as? JsonPrimitive)?.contentOrNull
+                            ?.takeIf { it.isNotEmpty() }
+                    val parsed = payload?.get("entries")?.jsonArray?.map { el ->
+                        val obj = el.jsonObject
+                        val name = obj["name"]?.jsonPrimitive?.content ?: ""
+                        FileEntry(
+                            name = name,
+                            // Server always sends `path` in Phase 12 Hotfix 1+.
+                            // Fallback to `name` for backwards compat if missing.
+                            path = (obj["path"] as? JsonPrimitive)?.contentOrNull
+                                ?.takeIf { it.isNotEmpty() } ?: name,
+                            type = obj["type"]?.jsonPrimitive?.content ?: "file",
+                            size = obj["size"]?.jsonPrimitive?.long ?: 0L,
+                            modified = (obj["modified"] as? JsonPrimitive)?.contentOrNull
+                        )
+                    } ?: emptyList()
+                    Log.d(
+                        TAG_FILE,
+                        "browse_files response: currentPath='${_currentPath.value}' " +
+                            "parent='${_parentPath.value}' entries=${parsed.size} " +
+                            "first=${parsed.take(3).map { "${it.name}(${it.type})→${it.path}" }}"
+                    )
+                    _fileEntries.value = parsed
+                } else {
+                    val error = payload?.get("error")?.jsonPrimitive?.content
+                    Log.w(TAG_FILE, "browse_files failed: $error")
+                    _snackbarEvent.tryEmit("Browse failed: ${error ?: "unknown"}")
+                }
+            }
+            MessageAction.REQUEST_DOWNLOAD -> {
+                if (success) {
+                    // Server sends "url" (not "downloadUrl") per Phase 12 protocol
+                    val downloadUrl = payload?.get("url")?.jsonPrimitive?.content
+                    val fileName = payload?.get("fileName")?.jsonPrimitive?.content
+                    if (downloadUrl != null && fileName != null) {
+                        startDownload(downloadUrl, fileName)
+                    } else {
+                        _snackbarEvent.tryEmit("Invalid download response")
+                    }
+                } else {
+                    val error = payload?.get("error")?.jsonPrimitive?.content
+                    _snackbarEvent.tryEmit("Download failed: ${error ?: "unknown"}")
+                }
             }
             MessageAction.SWITCH_MODE -> {
                 if (success) {
@@ -444,6 +766,34 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    private fun parseUsageDashboard(obj: JsonObject): UsageDashboard {
+        return UsageDashboard(
+            contextWindow = (obj["contextWindow"] as? JsonObject)?.let { parseContextWindow(it) },
+            fiveHourLimit = (obj["fiveHourLimit"] as? JsonObject)?.let { parseUsageLimit(it) },
+            weeklyAllModels = (obj["weeklyAllModels"] as? JsonObject)?.let { parseUsageLimit(it) },
+            weeklySonnetOnly = (obj["weeklySonnetOnly"] as? JsonObject)?.let { parseUsageLimit(it) },
+            modelName = (obj["modelName"] as? JsonPrimitive)?.contentOrNull,
+            planName = (obj["planName"] as? JsonPrimitive)?.contentOrNull,
+            fetchedAt = (obj["fetchedAt"] as? JsonPrimitive)?.contentOrNull
+        )
+    }
+
+    private fun parseContextWindow(obj: JsonObject): ContextWindow {
+        return ContextWindow(
+            usedText = (obj["usedText"] as? JsonPrimitive)?.contentOrNull,
+            totalText = (obj["totalText"] as? JsonPrimitive)?.contentOrNull,
+            percentUsed = (obj["percentUsed"] as? JsonPrimitive)?.intOrNull
+        )
+    }
+
+    private fun parseUsageLimit(obj: JsonObject): UsageLimit {
+        return UsageLimit(
+            label = (obj["label"] as? JsonPrimitive)?.contentOrNull,
+            percentUsed = (obj["percentUsed"] as? JsonPrimitive)?.intOrNull,
+            resetText = (obj["resetText"] as? JsonPrimitive)?.contentOrNull
+        )
+    }
+
     private fun handleStatus(action: String, payload: JsonObject?) {
         when (action) {
             MessageAction.CLAUDE_STATUS -> {
@@ -462,5 +812,9 @@ class MainViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         // Don't destroy the singleton client — Service keeps it alive
+    }
+
+    companion object {
+        private const val TAG_FILE = "FileBrowserVM"
     }
 }

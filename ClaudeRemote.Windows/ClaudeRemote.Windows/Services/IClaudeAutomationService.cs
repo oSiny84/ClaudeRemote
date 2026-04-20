@@ -15,6 +15,10 @@ public interface IClaudeAutomationService
 
     Task<bool> FindClaudeWindowAsync();
     Task<string> GetOutputAsync(string scope = "latest");
+
+    // Phase 13: structured chat-message output (user/assistant/tool + content).
+    // Android uses this to render chat bubbles instead of parsing a flat string.
+    Task<List<ChatMessage>> GetChatMessagesAsync(string scope = "latest");
     Task<bool> SendInputAsync(string text);
     Task<bool> SwitchModeAsync(string targetMode);
     Task<List<SessionInfo>> GetSessionsAsync();
@@ -24,6 +28,11 @@ public interface IClaudeAutomationService
     Task<bool> SelectProjectAsync(string projectId);
     Task<List<ButtonInfo>> GetActionButtonsAsync();
     Task<bool> ClickButtonAsync(string buttonId);
+
+    // Phase 11: usage observability
+    Task<UsageInfo?> GetUsageInfoAsync();
+    Task<UsageDashboard?> GetUsageDashboardAsync();
+
     void StartMonitoring();
     void StopMonitoring();
     void StartProcessWatcher();

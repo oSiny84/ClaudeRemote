@@ -48,6 +48,14 @@ public static class MessageAction
     public const string ClickButton = "click_button";
     public const string ClaudeStatus = "claude_status";
     public const string Heartbeat = "heartbeat";
+
+    // Phase 11: usage observability
+    public const string GetUsage = "get_usage";                       // Lightweight inline button scrape
+    public const string GetUsageDashboard = "get_usage_dashboard";    // Open panel → scrape → close
+
+    // Phase 12: file transfer
+    public const string BrowseFiles = "browse_files";                 // Directory listing via WebSocket
+    public const string RequestDownload = "request_download";         // Get HTTP download URL for a file
 }
 
 public static class ErrorCode

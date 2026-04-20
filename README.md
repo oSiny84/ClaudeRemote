@@ -5,8 +5,11 @@ Remotely monitor and control the **Claude Code** desktop app on your Windows PC 
 > **Currently supports Claude Code (Code mode) only.** Claude Chat / Cowork modes are not supported.
 
 > ⚠️ **Claude App Version Compatibility**
-> Commits made on or before **2026-04-15** only work with Claude Code app **versions below `1.2581.0 (f10398)`**.
-> Starting from version `1.2581.0 (f10398)`, the Claude app UI was significantly changed and the UIAutomation mappings need to be reworked. Use a matching commit for your Claude app version.
+> Choose the right ClaudeRemote version based on your Claude Code app version:
+> - **v1.0** — For Claude Code app **versions below `1.2581.0 (f10398)`**
+> - **v2.0** — For Claude Code app **`1.2581.0 (f10398)` and above** (new UI with folder-style projects)
+>
+> Starting from `1.2581.0 (f10398)`, the Claude app UI was significantly changed (projects became expandable folders containing sessions). v2.0 supports this new UI. Use a matching version for your Claude app.
 
 [Korean (한국어)](README.ko.md)
 
@@ -23,9 +26,18 @@ Both devices must be on the same local network (Wi-Fi). This allows you to monit
 
 Pre-built binaries are available in the [`Asset/`](Asset/) folder.
 
+### v2.0 — for Claude Code `1.2581.0 (f10398)` and above (latest)
+
+| File | Platform | Requirements |
+|------|----------|--------------|
+| [ClaudeCodeRemote-2.0-Windows-x64.zip](Asset/ClaudeCodeRemote-2.0-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0+` |
+| [ClaudeCodeRemote-2.0-android.apk](Asset/ClaudeCodeRemote-2.0-android.apk) | Android | Android 8.0 (API 26) or higher |
+
+### v1.0 — for Claude Code below `1.2581.0 (f10398)`
+
 | File | Platform | Size | Requirements |
 |------|----------|------|--------------|
-| [ClaudeCodeRemote-1.0-Windows-x64.zip](Asset/ClaudeCodeRemote-1.0-Windows-x64.zip) | Windows x64 | ~3.0 MB | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code desktop app |
+| [ClaudeCodeRemote-1.0-Windows-x64.zip](Asset/ClaudeCodeRemote-1.0-Windows-x64.zip) | Windows x64 | ~3.0 MB | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code below `1.2581.0` |
 | [ClaudeCodeRemote-1.0-android.apk](Asset/ClaudeCodeRemote-1.0-android.apk) | Android | ~16.3 MB | Android 8.0 (API 26) or higher |
 
 **Windows Setup:**
@@ -59,7 +71,7 @@ Pre-built binaries are available in the [`Asset/`](Asset/) folder.
 | Remote Command Input | Type commands on Android and send them to Claude Code |
 | Action Button Control | Tap Claude's choice buttons directly from Android |
 | Session Management | List, switch, and create new sessions |
-| Project Management | List and switch between projects |
+| Project Management | Browse projects as expandable folders, view sessions per project (v2.0) |
 | Real-time Status | Auto-detect Claude app launch/exit, streaming status |
 | Auto Reconnect | Exponential backoff reconnection on network failure |
 | Background Persistence | Android Foreground Service keeps connection alive in background |
@@ -201,8 +213,9 @@ The Android app serves as a **remote control** for Claude Code.
 - Bottom: Quick Commands (Continue, Stop, New) + command input field
 
 **Manage Screen**
-- Session list: view, select, add new sessions
-- Project list: view, switch projects
+- Project list (v2.0): expandable folder structure — tap a project to expand/collapse and reveal its sessions
+- Session list: view, select, add new sessions for the currently expanded project
+- v1.0: flat session and project lists (separate sections)
 
 #### Key Actions
 
@@ -211,7 +224,7 @@ The Android app serves as a **remote control** for Claude Code.
 3. **Quick Commands** — One-tap Continue, Stop, or New Session
 4. **Action Buttons** — When Claude presents choices, buttons appear under "Claude is asking:" — tap to select
 5. **Switch Sessions** — View and switch sessions in the Manage tab
-6. **Switch Projects** — View and switch projects in the Manage tab
+6. **Switch Projects** — View and switch projects in the Manage tab. In v2.0, tap a project to expand its sessions; tap again to collapse
 7. **Settings** — Tap the settings icon → Configure server address, auto-connect, notifications, theme
 
 #### Connection Settings
@@ -266,7 +279,7 @@ ClaudeRemote/
 
 - **Claude Code Only** — Currently supports Claude Code (Code mode) only. Claude Chat and Cowork modes are not supported.
 - **Same Network Required** — Windows PC and Android device must be on the same local network.
-- **UIAutomation Dependency** — The Windows app automates Claude Code's UI elements. Updates to the Claude app that change the UI structure may cause instability.
+- **UIAutomation Dependency** — The Windows app automates Claude Code's UI elements. Updates to the Claude app that change the UI structure may cause instability. Use the matching ClaudeRemote version (v1.0 or v2.0) for your Claude app version.
 - **Clipboard Usage** — Text input uses the system clipboard. Clipboard contents may be overwritten during input.
 - **Unencrypted Communication** — WebSocket uses `ws://` (unencrypted). Do not use outside of a local network.
 

@@ -63,7 +63,11 @@ public class SessionManager : ISessionManager
     {
         if (await _claudeService.SelectProjectAsync(projectId))
         {
+            // v2 UI: toggling a project label expands/collapses its session list.
+            // Refresh projects (to pick up IsExpanded) and sessions (new expanded set)
+            // so Android receives both lists in a single response.
             await RefreshProjectsAsync();
+            await RefreshSessionsAsync();
         }
     }
 }
