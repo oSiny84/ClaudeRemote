@@ -118,6 +118,14 @@
 
                 <Button Content="Refresh Sessions" Command="{Binding RefreshSessionsCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,6,0"/>
                 <Button Content="+ Session" Command="{Binding AddSessionCommand}" Style="{StaticResource PrimaryButton}"/>
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="8,2"/>
+
+                <CheckBox Content="Log to file"
+                          IsChecked="{Binding IsLogToFileEnabled}"
+                          Foreground="{StaticResource TextSecondaryBrush}"
+                          VerticalAlignment="Center"
+                          ToolTip="Write Serilog output to logs/ folder. Takes effect immediately."/>
             </StackPanel>
         </Border>
 

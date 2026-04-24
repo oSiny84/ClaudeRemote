@@ -7,9 +7,10 @@ Windows PC의 **Claude Code** 데스크톱 앱을 Android 스마트폰에서 원
 > ⚠️ **Claude 앱 버전 호환성**
 > 사용 중인 Claude Code 앱 버전에 맞는 ClaudeRemote 버전을 선택하세요:
 > - **v1.0** — Claude Code 앱 **`1.2581.0 (f10398)` 미만** 버전용
-> - **v2.0** — Claude Code 앱 **`1.2581.0 (f10398)` 이상** 버전용 (새 UI: 폴더 형태 프로젝트 구조)
+> - **v2.0** — Claude Code 앱 **`1.2581.0 (f10398)` ~ `1.3883.0` 미만** 버전용 (폴더 형태 프로젝트 구조)
+> - **v2.1** — Claude Code 앱 **`1.3883.0` 이상** 버전용 (새 채팅 쉘 `epitaxy-chat-column` 레이아웃 및 `df-drag-shiftable` 세션 래퍼 대응)
 >
-> `1.2581.0 (f10398)` 버전부터 Claude 앱 UI가 크게 변경되었습니다(프로젝트가 펼쳐지는 폴더 구조로 변경, 세션이 프로젝트 안에 포함됨). v2.0은 이 새 UI를 지원합니다. 사용 중인 Claude 앱 버전에 맞는 ClaudeRemote 버전을 사용하세요.
+> `1.2581.0 (f10398)` 버전부터 프로젝트가 펼쳐지는 폴더 구조로 바뀌었고, `1.3883.0` 버전부터는 채팅 출력 DOM과 사이드바 세션 행 구조가 다시 개편되어 v2.1이 필요합니다. 사용 중인 Claude 앱 버전에 맞는 ClaudeRemote 버전을 사용하세요.
 
 ## 개요
 
@@ -24,11 +25,18 @@ ClaudeRemote는 두 개의 앱으로 구성됩니다:
 
 빌드된 실행 파일은 [`Asset/`](Asset/) 폴더에서 받을 수 있습니다.
 
-### v2.0 — Claude Code `1.2581.0 (f10398)` 이상용 (최신)
+### v2.1 — Claude Code `1.3883.0` 이상용 (최신)
 
 | 파일 | 플랫폼 | 요구사항 |
 |------|--------|----------|
-| [ClaudeCodeRemote-2.0-Windows-x64.zip](Asset/ClaudeCodeRemote-2.0-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0+` |
+| [ClaudeCodeRemote-2.1-Windows-x64.zip](Asset/ClaudeCodeRemote-2.1-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.3883.0+` |
+| [ClaudeCodeRemote-2.1-android.apk](Asset/ClaudeCodeRemote-2.1-android.apk) | Android | Android 8.0 (API 26) 이상 |
+
+### v2.0 — Claude Code `1.2581.0 (f10398)` ~ `1.3883.0` 미만용
+
+| 파일 | 플랫폼 | 요구사항 |
+|------|--------|----------|
+| [ClaudeCodeRemote-2.0-Windows-x64.zip](Asset/ClaudeCodeRemote-2.0-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0` ~ `1.3883.0` 미만 |
 | [ClaudeCodeRemote-2.0-android.apk](Asset/ClaudeCodeRemote-2.0-android.apk) | Android | Android 8.0 (API 26) 이상 |
 
 ### v1.0 — Claude Code `1.2581.0 (f10398)` 미만용

@@ -27,6 +27,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _serverPort = 8765;
     [ObservableProperty] private string _logText = "";
     [ObservableProperty] private string _localIpAddress = "Detecting...";
+    [ObservableProperty] private bool _isLogToFileEnabled;
+
+    partial void OnIsLogToFileEnabledChanged(bool value)
+    {
+        App.Settings.LogToFile = value;
+        App.Settings.Save();
+    }
 
     public ObservableCollection<SessionInfo> Sessions { get; } = new();
     public ObservableCollection<ProjectInfo> Projects { get; } = new();
@@ -59,6 +66,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Detect local IP address
         LocalIpAddress = GetLocalIpAddress();
+
+        // Initialize from persisted settings (backing field write avoids
+        // re-triggering OnIsLogToFileEnabledChanged → redundant Save).
+        _isLogToFileEnabled = App.Settings.LogToFile;
     }
 
     private static string GetLocalIpAddress()

@@ -7,9 +7,10 @@ Remotely monitor and control the **Claude Code** desktop app on your Windows PC 
 > ⚠️ **Claude App Version Compatibility**
 > Choose the right ClaudeRemote version based on your Claude Code app version:
 > - **v1.0** — For Claude Code app **versions below `1.2581.0 (f10398)`**
-> - **v2.0** — For Claude Code app **`1.2581.0 (f10398)` and above** (new UI with folder-style projects)
+> - **v2.0** — For Claude Code app **`1.2581.0 (f10398)` ~ below `1.3883.0`** (folder-style projects)
+> - **v2.1** — For Claude Code app **`1.3883.0` and above** (new chat shell with `epitaxy-chat-column` layout and `df-drag-shiftable` session wrapper)
 >
-> Starting from `1.2581.0 (f10398)`, the Claude app UI was significantly changed (projects became expandable folders containing sessions). v2.0 supports this new UI. Use a matching version for your Claude app.
+> Starting from `1.2581.0 (f10398)`, the Claude app UI was changed so projects became expandable folders containing sessions. From `1.3883.0`, the chat output DOM and sidebar session rows were restructured again, requiring v2.1. Use a matching version for your Claude app.
 
 [Korean (한국어)](README.ko.md)
 
@@ -26,11 +27,18 @@ Both devices must be on the same local network (Wi-Fi). This allows you to monit
 
 Pre-built binaries are available in the [`Asset/`](Asset/) folder.
 
-### v2.0 — for Claude Code `1.2581.0 (f10398)` and above (latest)
+### v2.1 — for Claude Code `1.3883.0` and above (latest)
 
 | File | Platform | Requirements |
 |------|----------|--------------|
-| [ClaudeCodeRemote-2.0-Windows-x64.zip](Asset/ClaudeCodeRemote-2.0-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0+` |
+| [ClaudeCodeRemote-2.1-Windows-x64.zip](Asset/ClaudeCodeRemote-2.1-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.3883.0+` |
+| [ClaudeCodeRemote-2.1-android.apk](Asset/ClaudeCodeRemote-2.1-android.apk) | Android | Android 8.0 (API 26) or higher |
+
+### v2.0 — for Claude Code `1.2581.0 (f10398)` ~ below `1.3883.0`
+
+| File | Platform | Requirements |
+|------|----------|--------------|
+| [ClaudeCodeRemote-2.0-Windows-x64.zip](Asset/ClaudeCodeRemote-2.0-Windows-x64.zip) | Windows x64 | Windows 10/11 (x64), .NET 8 Desktop Runtime, Claude Code `1.2581.0` ~ below `1.3883.0` |
 | [ClaudeCodeRemote-2.0-android.apk](Asset/ClaudeCodeRemote-2.0-android.apk) | Android | Android 8.0 (API 26) or higher |
 
 ### v1.0 — for Claude Code below `1.2581.0 (f10398)`

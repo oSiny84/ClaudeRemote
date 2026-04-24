@@ -76,9 +76,11 @@ public class ClaudeAutomationService : IClaudeAutomationService, IDisposable
     private const string EpitaxyPromptClass = "epitaxy-prompt";
     private const string InputFieldName = "Prompt"; // tiptap ProseMirror
     private const string StopButtonName = "Stop"; // streaming state indicator (v1: Interrupt)
-    private const string OutputScrollClass = "h-full overflow-y-auto overflow-x-hidden"; // content area
+    private const string OutputScrollClass = "h-full overflow-y-auto overflow-x-hidden"; // content area (pre-1.3883)
+    private const string ChatColumnClass = "relative epitaxy-chat-column"; // chat column (1.3883+). Distinct from the prompt column which is "epitaxy-chat-column epitaxy-chat-size ...".
     private const string NewSessionPrefix = "New session"; // "New session ⌘N"
-    private const string SessionRowClassPrefix = "group relative rounded-"; // session wrapper
+    private const string SessionRowClassPrefix = "group relative rounded-"; // session wrapper (pre-1.3883)
+    private const string SessionRowDragWrapperPrefix = "relative df-drag-shiftable"; // session wrapper (1.3883+)
     private const string ProjectLabelClassPrefix = "group/label "; // project/section labels in sidebar
 
     // Approval card (both Permission and AskUserQuestion use this class)
@@ -230,8 +232,28 @@ public class ClaudeAutomationService : IClaudeAutomationService, IDisposable
                         return new List<ChatMessage>();
                     }
 
-                    // Find the content scroll container by class prefix
-                    var scrollContainer = FindByClassPrefixRaw(primaryPane, OutputScrollClass);
+                    // Find the message list container.
+                    // 1.3883+ layout nests messages under "relative epitaxy-chat-column"
+                    // → (inner "absolute top-0 left-0 w-full") → [message children].
+                    // The OLD "h-full overflow-y-auto overflow-x-hidden" Group still
+                    // exists in the new layout as an ANCESTOR of epitaxy-chat-column,
+                    // so matching it first and walking its direct children would hit
+                    // the chat-column wrapper (one child only) — everything falls into
+                    // the "unknown top-level" branch and gets flattened via
+                    // CollectInlineContent. Prefer the chat-column anchor.
+                    AutomationElement? scrollContainer = null;
+                    var chatColumn = FindByClassPrefixRaw(primaryPane, ChatColumnClass);
+                    if (chatColumn != null)
+                    {
+                        // Descend one level to the actual message list container.
+                        var inner = RawWalker.GetFirstChild(chatColumn);
+                        scrollContainer = inner ?? chatColumn;
+                    }
+                    else
+                    {
+                        // Legacy (pre-1.3883) layout.
+                        scrollContainer = FindByClassPrefixRaw(primaryPane, OutputScrollClass);
+                    }
                     var searchRoot = scrollContainer ?? primaryPane;
 
                     // Phase 13 research hook: dump chat structure once per session so
@@ -627,9 +649,12 @@ public class ClaudeAutomationService : IClaudeAutomationService, IDisposable
                         entries.Add(current);
                     }
                 }
-                else if (cls.StartsWith(SessionRowClassPrefix, StringComparison.Ordinal))
+                else if (cls.StartsWith(SessionRowClassPrefix, StringComparison.Ordinal) ||
+                         cls.StartsWith(SessionRowDragWrapperPrefix, StringComparison.Ordinal))
                 {
-                    // Session row — belongs to most recent project label (if any)
+                    // Session row — belongs to most recent project label (if any).
+                    // 1.3883+ wraps the session Group in an extra "relative df-drag-shiftable" Group;
+                    // FindFirstButtonRaw walks descendants so either wrapper resolves to the same Button.
                     if (current != null)
                         current.SessionGroups.Add(child);
                 }
